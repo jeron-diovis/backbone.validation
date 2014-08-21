@@ -235,9 +235,10 @@ Backbone.Validation = (function(_){
           // After validation is performed, loop through all validated attributes
           // and call the valid callbacks so the view is updated.
           _.each(validatedAttrs, function(val, attr){
-            var invalid = result.invalidAttrs.hasOwnProperty(attr);
+            var invalid = result.invalidAttrs.hasOwnProperty(attr),
+                changed = changedAttrs.hasOwnProperty(attr);
             if(!invalid){
-              opt.valid(view, attr, opt.selector);
+              opt.valid(view, attr, opt.selector, changed);
             }
           });
 
@@ -248,7 +249,7 @@ Backbone.Validation = (function(_){
                 changed = changedAttrs.hasOwnProperty(attr);
 
             if(invalid && (changed || validateAll)){
-              opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector);
+              opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector, changed);
             }
           });
 
