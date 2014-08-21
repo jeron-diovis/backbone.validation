@@ -249,9 +249,10 @@
             // After validation is performed, loop through all validated attributes
             // and call the valid callbacks so the view is updated.
             _.each(validatedAttrs, function(val, attr){
-              var invalid = result.invalidAttrs.hasOwnProperty(attr);
+              var invalid = result.invalidAttrs.hasOwnProperty(attr),
+                  changed = changedAttrs.hasOwnProperty(attr);
               if(!invalid){
-                opt.valid(view, attr, opt.selector);
+                opt.valid(view, attr, opt.selector, changed);
               }
             });
   
@@ -262,7 +263,7 @@
                   changed = changedAttrs.hasOwnProperty(attr);
   
               if(invalid && (changed || validateAll)){
-                opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector);
+                opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector, changed);
               }
             });
   
@@ -270,8 +271,8 @@
             // Need to defer this so the model is actually updated before
             // the event is triggered.
             _.defer(function() {
-              model.trigger('validated', model._isValid, model, result.invalidAttrs);
-              model.trigger('validated:' + (model._isValid ? 'valid' : 'invalid'), model, result.invalidAttrs);
+              model.trigger('validated', model._isValid, model, result.invalidAttrs, changedAttrs);
+              model.trigger('validated:' + (model._isValid ? 'valid' : 'invalid'), model, result.invalidAttrs, changedAttrs);
             });
   
             // Return any error messages to Backbone, unless the forceUpdate flag is set.
