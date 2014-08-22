@@ -350,15 +350,21 @@ buster.testCase("Backbone.Validation", {
             });
             var Model = Backbone.Model.extend({
                 validation: {
-                    one: function(val, attr, computed) {
+                    one: {
+                      depends: 'two',
+                      fn: function(val, attr, computed) {
                         if(val < computed.two) {
-                            return 'error';
+                          return 'error';
                         }
+                      }
                     },
-                    two: function(val, attr, computed) {
+                    two: {
+                      depends: 'one',
+                      fn: function(val, attr, computed) {
                         if(val > computed.one) {
-                            return 'return';
+                          return 'return';
                         }
+                      }
                     }
                 }
             });

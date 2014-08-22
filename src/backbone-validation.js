@@ -112,11 +112,12 @@ Backbone.Validation = (function(_){
       // with a validation method to call, the value to validate against
       // and the specified error message, if any
       return _.reduce(attrValidationSet, function(memo, attrValidation) {
-        _.each(_.without(_.keys(attrValidation), 'msg'), function(validator) {
+        _.each(_.without(_.keys(attrValidation), 'msg', 'depends'), function(validator) {
           memo.push({
             fn: defaultValidators[validator],
             val: attrValidation[validator],
-            msg: attrValidation.msg
+            msg: attrValidation.msg,
+            depends: attrValidation.depends || []
           });
         });
         return memo;
@@ -135,7 +136,7 @@ Backbone.Validation = (function(_){
         // Pass the format functions plus the default
         // validators as the context to the validator
         var ctx = _.extend({}, formatFunctions, defaultValidators),
-            result = validator.fn.call(ctx, value, attr, validator.val, model, computed);
+          result = validator.fn.call(ctx, value, attr, validator.val, model, computed, _.pick(computed, validator.depends));
 
         if(result === false || memo === false) {
           return false;
@@ -169,6 +170,10 @@ Backbone.Validation = (function(_){
         invalidAttrs: invalidAttrs,
         isValid: isValid
       };
+    };
+
+    var getAttrDependencies = function (model, attr) {
+      return _.chain(getValidators(model, attr)).pluck('depends').flatten().uniq().value();
     };
 
     // Contains the methods that are mixed in on the model when binding
@@ -227,6 +232,12 @@ Backbone.Validation = (function(_){
               validatedAttrs = getValidatedAttrs(model),
               allAttrs = _.extend({}, validatedAttrs, model.attributes, attrs),
               changedAttrs = flatten(attrs || allAttrs),
+              dependencies = _.chain(validatedAttrs)
+                              .map(function(noop, attr) { return [
+                                  attr,
+                                  _.any(getAttrDependencies(model, attr), function(dependency) { return changedAttrs.hasOwnProperty(dependency); })
+                              ]; })
+                              .object().value(),
 
               result = validateModel(model, allAttrs);
 
@@ -236,9 +247,11 @@ Backbone.Validation = (function(_){
           // and call the valid callbacks so the view is updated.
           _.each(validatedAttrs, function(val, attr){
             var invalid = result.invalidAttrs.hasOwnProperty(attr),
-                changed = changedAttrs.hasOwnProperty(attr);
-            if(!invalid){
-              opt.valid(view, attr, opt.selector, changed);
+                changed = changedAttrs.hasOwnProperty(attr),
+                dependencyChanged = dependencies[attr];
+
+            if(!invalid && (changed || dependencyChanged || validateAll)){
+              opt.valid(view, attr, opt.selector, changed, dependencyChanged);
             }
           });
 
@@ -246,10 +259,11 @@ Backbone.Validation = (function(_){
           // and call the invalid callback so the view is updated.
           _.each(validatedAttrs, function(val, attr){
             var invalid = result.invalidAttrs.hasOwnProperty(attr),
-                changed = changedAttrs.hasOwnProperty(attr);
+                changed = changedAttrs.hasOwnProperty(attr),
+                dependencyChanged = dependencies[attr];
 
-            if(invalid && (changed || validateAll)){
-              opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector, changed);
+            if(invalid && (changed || dependencyChanged || validateAll)){
+              opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector, changed, dependencyChanged);
             }
           });
 
