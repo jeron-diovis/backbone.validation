@@ -98,6 +98,20 @@ buster.testCase("isValid", {
 
 				assert(this.model.isValid(['name', 'age']));
 			}
+		},
+
+		"can pass options to 'validate'": function () {
+				var callback = sinon.spy();
+				this.model.isValid(true, {
+					invalid: callback
+				});
+				assert.called(callback);
+		},
+
+		"can validate entire model without calling 'validate' by passing false": function () {
+				this.model.validate = sinon.spy();
+				refute(this.model.isValid(false));
+				refute.called(this.model.validate);
 		}
 	}
 });

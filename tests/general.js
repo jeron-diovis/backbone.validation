@@ -291,6 +291,14 @@ buster.testCase("Backbone.Validation", {
                 assert.calledWith(this.valid, this.view, 'age');
                 assert.calledWith(this.valid, this.view, 'name');
                 refute.calledWith(this.valid, this.view, 'someProp');
+            },
+
+            "silent validation": function () {
+              this.model.validate(null, { silent: true });
+              var callback = sinon.spy();
+              this.model.on('validated', callback);
+              refute.called(this.invalid);
+              refute.called(callback);
             }
         }
     },

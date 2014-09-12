@@ -205,19 +205,23 @@ Backbone.Validation = (function(_){
         // Check to see if an attribute, an array of attributes or the
         // entire model is valid. Passing true will force a validation
         // of the model.
-        isValid: function(option) {
+        isValid: function(option, options) {
           var flattened = flatten(this.attributes);
 
+          if (option === false) {
+            options = _.keys(getValidatedAttrs(this));
+          }
           if(_.isString(option)){
             return !validateAttr(this, option, flattened[option], _.extend({}, this.attributes));
           }
+
           if(_.isArray(option)){
             return _.reduce(option, function(memo, attr) {
               return memo && !validateAttr(this, attr, flattened[attr], _.extend({}, this.attributes));
             }, true, this);
           }
           if(option === true) {
-            this.validate();
+            this.validate(null, options);
           }
           return this.validation ? this._isValid : true;
         },
@@ -232,48 +236,51 @@ Backbone.Validation = (function(_){
               validatedAttrs = getValidatedAttrs(model),
               allAttrs = _.extend({}, validatedAttrs, model.attributes, attrs),
               changedAttrs = flatten(attrs || allAttrs),
-              dependencies = _.chain(validatedAttrs)
-                              .map(function(noop, attr) { return [
-                                  attr,
-                                  _.any(getAttrDependencies(model, attr), function(dependency) { return changedAttrs.hasOwnProperty(dependency); })
-                              ]; })
-                              .object().value(),
-
               result = validateModel(model, allAttrs);
 
           model._isValid = result.isValid;
 
-          // After validation is performed, loop through all validated attributes
-          // and call the valid callbacks so the view is updated.
-          _.each(validatedAttrs, function(val, attr){
-            var invalid = result.invalidAttrs.hasOwnProperty(attr),
+          if (!opt.silent) {
+            var dependencies = _.chain(validatedAttrs)
+                .map(function(noop, attr) {
+                  return [
+                    attr,
+                    _.any(getAttrDependencies(model, attr), function(dependency) { return changedAttrs.hasOwnProperty(dependency); })
+                  ];
+                }).object().value();
+
+            // After validation is performed, loop through all validated attributes
+            // and call the valid callbacks so the view is updated.
+            _.each(validatedAttrs, function (val, attr) {
+              var invalid = result.invalidAttrs.hasOwnProperty(attr),
                 changed = changedAttrs.hasOwnProperty(attr),
                 dependencyChanged = dependencies[attr];
 
-            if(!invalid && (changed || dependencyChanged || validateAll)){
-              opt.valid(view, attr, opt.selector, changed, dependencyChanged);
-            }
-          });
+              if (!invalid && (changed || dependencyChanged || validateAll)) {
+                opt.valid(view, attr, opt.selector, changed, dependencyChanged);
+              }
+            });
 
-          // After validation is performed, loop through all validated and changed attributes
-          // and call the invalid callback so the view is updated.
-          _.each(validatedAttrs, function(val, attr){
-            var invalid = result.invalidAttrs.hasOwnProperty(attr),
+            // After validation is performed, loop through all validated and changed attributes
+            // and call the invalid callback so the view is updated.
+            _.each(validatedAttrs, function (val, attr) {
+              var invalid = result.invalidAttrs.hasOwnProperty(attr),
                 changed = changedAttrs.hasOwnProperty(attr),
                 dependencyChanged = dependencies[attr];
 
-            if(invalid && (changed || dependencyChanged || validateAll)){
-              opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector, changed, dependencyChanged);
-            }
-          });
+              if (invalid && (changed || dependencyChanged || validateAll)) {
+                opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector, changed, dependencyChanged);
+              }
+            });
 
-          // Trigger validated events.
-          // Need to defer this so the model is actually updated before
-          // the event is triggered.
-          _.defer(function() {
-            model.trigger('validated', model._isValid, model, result.invalidAttrs, changedAttrs);
-            model.trigger('validated:' + (model._isValid ? 'valid' : 'invalid'), model, result.invalidAttrs, changedAttrs);
-          });
+            // Trigger validated events.
+            // Need to defer this so the model is actually updated before
+            // the event is triggered.
+            _.defer(function () {
+              model.trigger('validated', model._isValid, model, result.invalidAttrs, changedAttrs);
+              model.trigger('validated:' + (model._isValid ? 'valid' : 'invalid'), model, result.invalidAttrs, changedAttrs);
+            });
+          }
 
           // Return any error messages to Backbone, unless the forceUpdate flag is set.
           // Then we do not return anything and fools Backbone to believe the validation was
