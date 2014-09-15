@@ -209,7 +209,7 @@ Backbone.Validation = (function(_){
           var flattened = flatten(this.attributes);
 
           if (option === false) {
-            options = _.keys(getValidatedAttrs(this));
+            option = _.keys(getValidatedAttrs(this));
           }
           if(_.isString(option)){
             return !validateAttr(this, option, flattened[option], _.extend({}, this.attributes));
