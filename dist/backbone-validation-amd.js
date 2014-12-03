@@ -532,11 +532,11 @@
       return {
         // Function validator
         // Lets you implement a custom function used for validation
-        fn: function(value, attr, fn, model, computed) {
+        fn: function(value, attr, fn, model, computed, dependent) {
           if(_.isString(fn)){
             fn = model[fn];
           }
-          return fn.call(model, value, attr, computed);
+          return fn.call(model, value, attr, computed, dependent);
         },
   
         // Required validator
