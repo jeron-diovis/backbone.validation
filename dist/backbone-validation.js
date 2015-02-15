@@ -113,12 +113,13 @@ Backbone.Validation = (function(_){
       // with a validation method to call, the value to validate against
       // and the specified error message, if any
       return _.reduce(attrValidationSet, function(memo, attrValidation) {
-        _.each(_.without(_.keys(attrValidation), 'msg', 'depends'), function(validator) {
+        _.each(_.without(_.keys(attrValidation), 'msg', 'depends', 'labelPlaceholders'), function(validator) {
           memo.push({
             fn: defaultValidators[validator],
             val: attrValidation[validator],
             msg: attrValidation.msg,
-            depends: attrValidation.depends || []
+            depends: attrValidation.depends || [],
+            labelPlaceholders: attrValidation.labelPlaceholders
           });
         });
         return memo;
@@ -142,9 +143,27 @@ Backbone.Validation = (function(_){
         if(result === false || memo === false) {
           return false;
         }
+
         if (result && !memo) {
-          return _.result(validator, 'msg') || result;
+          var msg = _.result(validator, 'msg');
+          if (msg) {
+            var labelPlaceholders = validator.labelPlaceholders || [].concat(validator.val); // array values will be unpacked, convenient for range validators
+
+            if (typeof labelPlaceholders === 'function') {
+              labelPlaceholders = labelPlaceholders(validator.val, value); // pass value too, as it can require some processing (if it's a nested model, for example)
+            } else {
+              labelPlaceholders = [].concat(labelPlaceholders, value);
+            }
+
+            var placeholders = [ validatorsContext.formatLabel(attr, model) ].concat(labelPlaceholders);
+            msg = validatorsContext.format.apply(validatorsContext, [ msg ].concat(placeholders));
+
+            return msg;
+          } else {
+            return result;
+          }
         }
+
         return memo;
       }, '');
     };
@@ -640,10 +659,12 @@ Backbone.Validation = (function(_){
     };
   }());
 
+  var validatorsContext = _.extend({}, formatFunctions, defaultValidators);
+
   // Set the correct context for all validators
   // when used from within a method validator
   _.each(defaultValidators, function(validator, key){
-    defaultValidators[key] = _.bind(defaultValidators[key], _.extend({}, formatFunctions, defaultValidators));
+    defaultValidators[key] = _.bind(defaultValidators[key], validatorsContext);
   });
 
   return Validation;

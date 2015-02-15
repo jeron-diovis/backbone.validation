@@ -92,5 +92,85 @@ buster.testCase('Label formatters', {
         assert.equals('Some other attribute is required', this.model.preValidate('some_other_attribute', ''));
       }
     }
+  },
+
+  "Label placeholders for custom messages should be processed": {
+    setUp: function () {
+      Backbone.Validation.configure({
+        labelFormatter: 'none'
+      });
+
+      var Model = Backbone.Model.extend({
+        validation: {
+          attr: {
+            max: 42,
+            msg: 'Max allowed value for {0} is {1}, but have {2}'
+          }
+        }
+      });
+
+      this.model = new Model();
+      _.extend(this.model, Backbone.Validation.mixin);
+    },
+
+    tearDown: function() {
+      // Reset to default formatter
+      Backbone.Validation.configure({
+        labelFormatter: 'sentenceCase'
+      });
+    },
+
+    "by default": {
+      "attr name, validator params and attr value should be used": function () {
+        assert.equals('Max allowed value for attr is 42, but have 100', this.model.preValidate('attr', 100));
+      },
+
+      "array params": {
+        setUp: function () {
+          this.model.validation.ranged_attr = {
+            range: [10, 15],
+            msg: '{0} should be between {1} and {2}, but have {3}'
+          };
+        },
+
+        tearDown: function () {
+          delete this.model.validation.ranged_attr;
+        },
+
+        "should be unpacked": function () {
+          assert.equals('ranged_attr should be between 10 and 15, but have 20', this.model.preValidate('ranged_attr', 20));
+        }
+      }
+    },
+
+    "when explicitly specified": {
+
+      tearDown: function () {
+        delete this.model.validation.attr.labelPlaceholders;
+      },
+
+      "not as a function": {
+        setUp: function () {
+          this.model.validation.attr.labelPlaceholders = 'The Answer';
+        },
+
+        "should replace only validator params": function () {
+          assert.equals('Max allowed value for attr is The Answer, but have 100', this.model.preValidate('attr', 100));
+        }
+      },
+
+      "as a function": {
+        setUp: function () {
+          this.model.validation.attr.labelPlaceholders = function (param, value) {
+            return ['param:' + param, 'value:' + value];
+          };
+        },
+
+        "should replace both validator params and attr value": function () {
+          assert.equals('Max allowed value for attr is param:42, but have value:100', this.model.preValidate('attr', 100));
+        }
+      }
+    }
+
   }
 });
