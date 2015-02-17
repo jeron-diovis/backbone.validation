@@ -16,7 +16,8 @@ Backbone.Validation = (function(_){
     selector: 'name',
     labelFormatter: 'sentenceCase',
     valid: Function.prototype,
-    invalid: Function.prototype
+    invalid: Function.prototype,
+    useEventsInsteadOfCallbacks: false // flag to switch to new api version
   };
 
 
@@ -273,23 +274,27 @@ Backbone.Validation = (function(_){
             // and call the valid callbacks so the view is updated.
             _.each(validatedAttrs, function (val, attr) {
               var invalid = result.invalidAttrs.hasOwnProperty(attr),
-                changed = changedAttrs.hasOwnProperty(attr),
-                dependencyChanged = dependencies[attr];
+                isChanged = changedAttrs.hasOwnProperty(attr),
+                isDependencyChanged = dependencies[attr],
+                error = result.invalidAttrs[attr];
 
-              if (!invalid && (changed || dependencyChanged || validateAll)) {
-                opt.valid(view, attr, opt.selector, changed, dependencyChanged);
-              }
-            });
-
-            // After validation is performed, loop through all validated and changed attributes
-            // and call the invalid callback so the view is updated.
-            _.each(validatedAttrs, function (val, attr) {
-              var invalid = result.invalidAttrs.hasOwnProperty(attr),
-                changed = changedAttrs.hasOwnProperty(attr),
-                dependencyChanged = dependencies[attr];
-
-              if (invalid && (changed || dependencyChanged || validateAll)) {
-                opt.invalid(view, attr, result.invalidAttrs[attr], opt.selector, changed, dependencyChanged);
+              if (isChanged || isDependencyChanged || validateAll) {
+                if (!defaultOptions.useEventsInsteadOfCallbacks) {
+                  // Old api with callbacks and dumb mixing view and model together
+                  if (invalid) {
+                    opt.invalid(view, attr, error, opt.selector, isChanged, isDependencyChanged);
+                  } else {
+                    opt.valid(view, attr, opt.selector, isChanged, isDependencyChanged);
+                  }
+                } else {
+                  // New api with just clear events on model. No explicitly bound view.
+                  model.trigger('attr:validated', model, attr, !invalid, {
+                    error: error,
+                    isChanged: isChanged,
+                    isDependencyChanged: isDependencyChanged,
+                    validateAll: validateAll
+                  });
+                }
               }
             });
 
@@ -314,14 +319,26 @@ Backbone.Validation = (function(_){
 
     // Helper to mix in validation on a model
     var bindModel = function(view, model, options) {
-      _.extend(model, mixin(view, options));
+      if (!defaultOptions.useEventsInsteadOfCallbacks) {
+        // old api
+        _.extend(model, mixin(view, options));
+      } else {
+        // new api
+        view.listenTo(model, 'attr:validated', options.onAttrValidated);
+      }
     };
 
     // Removes the methods added to a model
-    var unbindModel = function(model) {
-      delete model.validate;
-      delete model.preValidate;
-      delete model.isValid;
+    var unbindModel = function(view, model, options) {
+      if (!defaultOptions.useEventsInsteadOfCallbacks) {
+        // old api
+        delete model.validate;
+        delete model.preValidate;
+        delete model.isValid;
+      } else {
+        // new api
+        view.stopListening(model, 'attr:validated', options.onAttrValidated);
+      }
     };
 
     // Mix in validation on a model whenever a model is
@@ -333,7 +350,7 @@ Backbone.Validation = (function(_){
     // Remove validation from a model whenever a model is
     // removed from a collection
     var collectionRemove = function(model) {
-      unbindModel(model);
+      unbindModel(this.view, model, this.options);
     };
 
     // Returns the public methods on Backbone.Validation
@@ -360,15 +377,33 @@ Backbone.Validation = (function(_){
                 'See http://thedersen.com/projects/backbone-validation/#using-form-model-validation for more information.';
         }
 
+
+        // new api
+        if (defaultOptions.useEventsInsteadOfCallbacks && !options.onAttrValidated) {
+          options.onAttrValidated = function (model, attr, isValid, params) {
+            var view = this,
+              error = params.error;
+            if (params.isChanged || params.isDependencyChanged || params.validateAll) {
+              if (isValid) {
+                options.valid(view, attr);
+              } else {
+                options.invalid(view, attr, error);
+              }
+            }
+          };
+        }
+
         if(model) {
           bindModel(view, model, options);
         }
-        else if(collection) {
+
+        if(collection) {
           collection.each(function(model){
             bindModel(view, model, options);
           });
-          collection.bind('add', collectionAdd, {view: view, options: options});
-          collection.bind('remove', collectionRemove);
+          var context = {view: view, options: options};
+          collection.bind('add', collectionAdd, context);
+          collection.bind('remove', collectionRemove, context);
         }
       },
 
@@ -380,11 +415,12 @@ Backbone.Validation = (function(_){
             collection = options.collection || view.collection;
 
         if(model) {
-          unbindModel(model);
+          unbindModel(view, model, options);
         }
-        else if(collection) {
+
+        if(collection) {
           collection.each(function(model){
-            unbindModel(model);
+            unbindModel(view, model, options);
           });
           collection.unbind('add', collectionAdd);
           collection.unbind('remove', collectionRemove);
