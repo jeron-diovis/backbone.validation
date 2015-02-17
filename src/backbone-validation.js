@@ -408,12 +408,12 @@ Backbone.Validation = (function(_){
             collection = options.collection || view.collection;
 
         if(model) {
-          unbindModel(model);
+          unbindModel(view, model, options);
         }
 
         if(collection) {
           collection.each(function(model){
-            unbindModel(model);
+            unbindModel(view, model, options);
           });
           collection.unbind('add', collectionAdd);
           collection.unbind('remove', collectionRemove);
