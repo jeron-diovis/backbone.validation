@@ -389,7 +389,8 @@ Backbone.Validation = (function(_){
         if(model) {
           bindModel(view, model, options);
         }
-        else if(collection) {
+
+        if(collection) {
           collection.each(function(model){
             bindModel(view, model, options);
           });
@@ -409,7 +410,8 @@ Backbone.Validation = (function(_){
         if(model) {
           unbindModel(model);
         }
-        else if(collection) {
+
+        if(collection) {
           collection.each(function(model){
             unbindModel(model);
           });
